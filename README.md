@@ -44,6 +44,12 @@ Alternatively, you can install sentry2csv using standard pip.
 This also accepts an optional `--enrich` flag. Enrichments augment issues with data from the latest event.
 An enrichment is in the form of `dotted.sentry.path=CSV_Field_Name`, and multiple enrichments are comma-separated.
 
+The application will then fetch all issues of the according project and store 
+it in a file named `<SENTRY_ORG>-<SENTRY_PROJECT>-export.csv` in the current working
+directory.
+
+Use `sentry2csv -h` to see all additional parameters.
+
 ## Development
 1. Clone this repository
 2. Create a virtualenv with Python 3.7 or greater
