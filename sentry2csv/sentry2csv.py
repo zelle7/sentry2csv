@@ -66,15 +66,19 @@ async def enrich_issue(
             issue["_enrichments"][enrichment.csv_field] = ""
 
 
-async def fetch_issues(session: aiohttp.ClientSession, issues_url: str) -> List[Dict[str, Any]]:
+async def fetch_issues(session: aiohttp.ClientSession, issues_url: str, additional_query_params: str) -> List[Dict[str, Any]]:
     """Fetch all issues from Sentry."""
     page_count = 1
     issues: List[Dict[str, Any]] = []
     cursor = ""
+
+    query_params = "is:unresolved"
+    if additional_query_params:
+        query_params = query_params + " " + additional_query_params
     while True:
         print(f"Fetching issues page {page_count}")
         resp, links = await fetch(
-            session, issues_url, params={"cursor": cursor, "statsPeriod": "", "query": "is:unresolved"}
+            session, issues_url, params={"cursor": cursor, "statsPeriod": "", "query": query_params}
         )
         logger.debug("Received page %s", resp)
         assert isinstance(resp, list), f"Bad response type. Expected list, got {type(resp)}"
@@ -129,14 +133,14 @@ def write_csv(filename: str, issues: List[Dict[str, Any]]):
 
 
 async def export(
-    token: str, organization: str, project: str, enrich: Optional[List[Enrichment]] = None, host: str = SENTRY_HOST
+    token: str, organization: str, project: str, enrich: Optional[List[Enrichment]] = None, host: str = SENTRY_HOST, additional_query_params: str = None,
 ):
     """Export data from Sentry to CSV."""
     enrichments: List[Enrichment] = enrich or []
     issues_url = f"https://{host}/api/0/projects/{organization}/{project}/issues/"
     async with aiohttp.ClientSession(headers={"Authorization": f"Bearer {token}"}) as session:
         try:
-            issues = await fetch_issues(session, issues_url)
+            issues = await fetch_issues(session, issues_url, additional_query_params)
             if enrichments:
                 print(f"Enriching {len(issues)} issues with event data...")
                 await asyncio.gather(
@@ -168,6 +172,7 @@ def main():
     parser.add_argument("--version", action="version", version=version)
     parser.add_argument("--enrich", help="Optional mappings of event metadata")
     parser.add_argument("--token", metavar="API_TOKEN", nargs=1, required=True, help="The Sentry API token")
+
     parser.add_argument(
         "--host",
         metavar="HOST",
@@ -175,6 +180,16 @@ def main():
         required=False,
         default=[SENTRY_HOST],
         help=f"The Sentry host [default: {SENTRY_HOST}]",
+    )
+    parser.add_argument(
+            "--query",
+            metavar="ADDITIONAL_QUERY_PARAMETER",
+            nargs=1,
+            required=False,
+            help="Additional query parameters for the issue fetching. Will "
+                 "attach the query parameters separated by a space to the "
+                 "existing is:unresolved query parameter",
+            default=[None]
     )
     parser.add_argument("organization", metavar="ORGANIZATION", nargs=1, help="The Sentry organization")
     parser.add_argument("project", metavar="PROJECT", nargs=1, help="The Sentry project")
@@ -188,7 +203,7 @@ def main():
     enrichments = extract_enrichment(args.enrich)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
-        export(args.token[0], args.organization[0], args.project[0], enrich=enrichments, host=args.host[0])
+        export(args.token[0], args.organization[0], args.project[0], enrich=enrichments, host=args.host[0], additional_query_params=args.query[0])
     )
 
 

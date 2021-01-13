@@ -75,9 +75,29 @@ async def test_fetch_issues(mocker, session):
     """Test issue fetching."""
     fetch_mock = mocker.patch("sentry2csv.sentry2csv.fetch", new=CoroutineMock())
     fetch_mock.return_value = ([1, 2, 3, 4], {})
-    issues = await sentry2csv.fetch_issues(session, "http://sentry.io/issues")
+    issues = await sentry2csv.fetch_issues(
+            session,
+            "http://sentry.io/issues",
+            None
+    )
     fetch_mock.assert_awaited_once_with(
         session, "http://sentry.io/issues", params={"cursor": "", "statsPeriod": "", "query": "is:unresolved"}
+    )
+    assert issues == [1, 2, 3, 4]
+
+
+@pytest.mark.asyncio
+async def test_fetch_issues_additional_params(mocker, session):
+    """Test issue fetching with additional query parameters."""
+    fetch_mock = mocker.patch("sentry2csv.sentry2csv.fetch", new=CoroutineMock())
+    fetch_mock.return_value = ([1, 2, 3, 4], {})
+    issues = await sentry2csv.fetch_issues(
+            session,
+            "http://sentry.io/issues",
+            "event.timestamp:>=2021-01-12T00:00:00"
+    )
+    fetch_mock.assert_awaited_once_with(
+            session, "http://sentry.io/issues", params={"cursor": "", "statsPeriod": "", "query": "is:unresolved event.timestamp:>=2021-01-12T00:00:00"}
     )
     assert issues == [1, 2, 3, 4]
 
@@ -90,7 +110,11 @@ async def test_fetch_issues_multiple_pages(mocker, session):
         ([1, 2, 3, 4], {"next": {"results": "true", "cursor": "12345:0:0"}}),
         ([5, 6, 7, 8], {"next": {"results": "false"}}),
     ]
-    issues = await sentry2csv.fetch_issues(session, "http://sentry.io/issues")
+    issues = await sentry2csv.fetch_issues(
+            session,
+            "http://sentry.io/issues",
+            None
+    )
     fetch_mock.assert_has_awaits(
         [
             call(
